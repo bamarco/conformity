@@ -122,7 +122,7 @@
   (reduce
    (fn [acc [tx-index tx]]
      (try
-       (let [safe-tx (ds/call conn [ensure-norm-tx-txfn norm-attr norm-name (index-attr norm-attr) tx-index tx])
+       (let [safe-tx (ds/call conn [::ensure-norm-tx-txfn norm-attr norm-name (index-attr norm-attr) tx-index tx])
              _ (case (ds/db-kind conn)
                  :datascript nil
                  :datomic #?(:clj (maybe-timeout-synch-schema conn sync-schema-timeout)))
