@@ -64,7 +64,7 @@
   required to track conformity via the conformity-attr keyword
   parameter are installed in the database."
   [conn conformity-attr]
-  (when-not (has-attribute? (ds/snap conn) conformity-attr)
+  (when-not (has-attribute? (ds/db conn) conformity-attr)
     (ds/transact! conn [{:db/id (ds/tempid! conn :db.part/db)
                         :db/ident conformity-attr
                         :db/valueType :db.type/keyword
@@ -72,7 +72,7 @@
                         :db/doc "Name of this transaction's norm"
                         :db/index true
                         :db.install/_attribute :db.part/db}]))
-  (when-not (has-attribute? (ds/snap conn) (index-attr conformity-attr))
+  (when-not (has-attribute? (ds/db conn) (index-attr conformity-attr))
     (ds/transact! conn [{:db/id (ds/tempid! conn :db.part/db)
                         :db/ident (index-attr conformity-attr)
                         :db/valueType :db.type/long
@@ -80,7 +80,7 @@
                         :db/doc "Index of this transaction within its norm"
                         :db/index true
                         :db.install/_attribute :db.part/db}]))
-  (when-not (has-function? (ds/snap conn) ::ensure-norm-tx-txfn)
+  (when-not (has-function? (ds/db conn) ::ensure-norm-tx-txfn)
     (ds/transact! conn [{:db/id (ds/tempid! conn :db.part/user)
                         :db/ident ::ensure-norm-tx-txfn
                         :db/doc "Ensures each norm tx is executed exactly once"
@@ -125,6 +125,7 @@
        (let [safe-tx (ds/call conn [::ensure-norm-tx-txfn norm-attr norm-name (index-attr norm-attr) tx-index tx])
              _ (case (ds/db-kind conn)
                  :datascript nil
+                 :wrapped-datomic #?(:clj (maybe-timeout-synch-schema (:conn conn) sync-schema-timeout))
                  :datomic #?(:clj (maybe-timeout-synch-schema conn sync-schema-timeout)))
              tx-result (ds/transact! conn [safe-tx])]
          (if (next (:tx-data tx-result))
@@ -178,7 +179,7 @@
                    requires (reduce-norms conn norm-attr norm-map requires))
              {:keys [txes ex]} (get-norm conn norm-map norm-name)]
          (cond
-           (conforms-to? (ds/snap conn) norm-attr norm-name (count txes))
+           (conforms-to? (ds/db conn) norm-attr norm-name (count txes))
            acc
 
            (empty? txes)
@@ -219,7 +220,7 @@
   ([conn norm-map]
    (ensure-conforms conn norm-map (keys norm-map)))
   ([conn norm-map norm-names]
-   (ensure-conforms conn (default-conformity-attribute-for-db (ds/snap conn)) norm-map norm-names))
+   (ensure-conforms conn (default-conformity-attribute-for-db (ds/db conn)) norm-map norm-names))
   ([conn conformity-attr norm-map norm-names]
    (ensure-conformity-schema conn conformity-attr)
    (reduce-norms [] conn conformity-attr norm-map norm-names)))
@@ -266,5 +267,5 @@
    (let [conn (speculative-conn db)]
      (ensure-conformity-schema conn conformity-attr)
      (let [result (reduce-norms [] conn conformity-attr norm-map norm-names)]
-       {:db (ds/snap conn)
+       {:db (ds/db conn)
         :result result}))))
